@@ -11,6 +11,10 @@ import { ProjectileMotion } from './components/physics/ProjectileMotion';
 import { PendulumSimulation } from './components/physics/PendulumSimulation';
 import { WaveOpticsSimulation } from './components/physics/WaveOpticsSimulation';
 import { ElectricFieldSimulation } from './components/physics/ElectricFieldSimulation';
+import { ChargedParticleFields } from './components/physics/ChargedParticleFields';
+import { OrbitalGravitation } from './components/physics/OrbitalGravitation';
+import { LenzInductionSimulation } from './components/physics/LenzInductionSimulation';
+import { CircularMotionBanking } from './components/physics/CircularMotionBanking';
 
 type NavTab =
   | 'target'
@@ -22,9 +26,19 @@ type NavTab =
   | 'vault'
   | 'simulations';
 
+type SimType =
+  | 'projectile'
+  | 'fields'
+  | 'orbit'
+  | 'lenz'
+  | 'banking'
+  | 'pendulum'
+  | 'waves'
+  | 'electric';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('target');
-  const [activeSim, setActiveSim] = useState<'projectile' | 'pendulum' | 'waves' | 'electric'>('projectile');
+  const [activeSim, setActiveSim] = useState<SimType>('fields');
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500/20 selection:text-cyan-200">
@@ -199,7 +213,47 @@ export default function App() {
               </div>
 
               {/* Sim Selector */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-lg border border-slate-800 overflow-x-auto">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-lg border border-slate-800 overflow-x-auto max-w-full">
+                <button
+                  onClick={() => setActiveSim('fields')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+                    activeSim === 'fields'
+                      ? 'bg-cyan-900/80 text-cyan-200 border border-cyan-700/60'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Crossed E &amp; B Fields
+                </button>
+                <button
+                  onClick={() => setActiveSim('orbit')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+                    activeSim === 'orbit'
+                      ? 'bg-cyan-900/80 text-cyan-200 border border-cyan-700/60'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Orbital Gravitation
+                </button>
+                <button
+                  onClick={() => setActiveSim('lenz')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+                    activeSim === 'lenz'
+                      ? 'bg-cyan-900/80 text-cyan-200 border border-cyan-700/60'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Lenz &amp; Motional EMF
+                </button>
+                <button
+                  onClick={() => setActiveSim('banking')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+                    activeSim === 'banking'
+                      ? 'bg-cyan-900/80 text-cyan-200 border border-cyan-700/60'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Banked Curve Vectors
+                </button>
                 <button
                   onClick={() => setActiveSim('projectile')}
                   className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
@@ -208,7 +262,7 @@ export default function App() {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Kinematics
+                  Kinematics (vx, vy, g)
                 </button>
                 <button
                   onClick={() => setActiveSim('pendulum')}
@@ -218,7 +272,7 @@ export default function App() {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Harmonic SHM
+                  Harmonic SHM (T, mg, v)
                 </button>
                 <button
                   onClick={() => setActiveSim('waves')}
@@ -228,7 +282,7 @@ export default function App() {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Wave Optics
+                  Wave Optics &amp; Snell
                 </button>
                 <button
                   onClick={() => setActiveSim('electric')}
@@ -238,12 +292,16 @@ export default function App() {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Coulomb Fields
+                  Coulomb Vector Fields
                 </button>
               </div>
             </div>
 
             {/* Active Simulation */}
+            {activeSim === 'fields' && <ChargedParticleFields />}
+            {activeSim === 'orbit' && <OrbitalGravitation />}
+            {activeSim === 'lenz' && <LenzInductionSimulation />}
+            {activeSim === 'banking' && <CircularMotionBanking />}
             {activeSim === 'projectile' && <ProjectileMotion />}
             {activeSim === 'pendulum' && <PendulumSimulation />}
             {activeSim === 'waves' && <WaveOpticsSimulation />}

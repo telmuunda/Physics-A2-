@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, RotateCcw, FastForward, Info, Layers, Compass } from 'lucide-react';
 import { MathTex } from '../MathTex';
+import { drawExaggeratedVector } from '../../utils/canvasVector';
 
 interface PlanetGravity {
   name: string;
@@ -21,6 +22,7 @@ export const ProjectileMotion: React.FC = () => {
   const [gravity, setGravity] = useState<number>(9.81);
   const [airDrag, setAirDrag] = useState<number>(0); // drag coefficient
   const [showVectors, setShowVectors] = useState<boolean>(true);
+  const [vectorScale, setVectorScale] = useState<number>(2.5); // vector exaggeration boost
   const [showTrail, setShowTrail] = useState<boolean>(true);
   const [simSpeed, setSimSpeed] = useState<number>(1); // 0.25x, 0.5x, 1x
 
@@ -272,35 +274,52 @@ export const ProjectileMotion: React.FC = () => {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Velocity Vectors
+    // Velocity & Gravity Vectors (Exaggerated & Glowing)
     if (showVectors && (currentPos.vx !== 0 || currentPos.vy !== 0)) {
-      const vecScale = 1.2;
-      // Resultant velocity vector (Orange)
-      const endVx = curX + currentPos.vx * vecScale;
-      const endVy = curY - currentPos.vy * vecScale;
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(curX, curY);
-      ctx.lineTo(endVx, endVy);
-      ctx.stroke();
+      const vMag = Math.hypot(currentPos.vx, currentPos.vy);
+      const vScale = 1.6 * vectorScale;
 
-      // vx component (Cyan)
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([2, 2]);
-      ctx.beginPath();
-      ctx.moveTo(curX, curY);
-      ctx.lineTo(endVx, curY);
-      ctx.stroke();
+      // 1. Resultant Velocity Vector v (Neon Amber glowing arrow)
+      const endVx = curX + currentPos.vx * vScale;
+      const endVy = curY - currentPos.vy * vScale;
+      drawExaggeratedVector(ctx, curX, curY, endVx, endVy, {
+        color: '#f59e0b',
+        lineWidth: 4.5,
+        headLength: 16,
+        label: `v = ${vMag.toFixed(1)} m/s`,
+        glow: true,
+      });
 
-      // vy component (Emerald)
-      ctx.strokeStyle = '#10b981';
-      ctx.beginPath();
-      ctx.moveTo(endVx, curY);
-      ctx.lineTo(endVx, endVy);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      // 2. Horizontal component vx (Cyan dashed arrow)
+      drawExaggeratedVector(ctx, curX, curY, endVx, curY, {
+        color: '#06b6d4',
+        lineWidth: 3.5,
+        headLength: 14,
+        label: `vx = ${Math.abs(currentPos.vx).toFixed(1)}`,
+        dashed: true,
+        glow: true,
+      });
+
+      // 3. Vertical component vy (Emerald dashed arrow)
+      drawExaggeratedVector(ctx, endVx, curY, endVx, endVy, {
+        color: '#10b981',
+        lineWidth: 3.5,
+        headLength: 14,
+        label: `vy = ${currentPos.vy.toFixed(1)}`,
+        dashed: true,
+        glow: true,
+      });
+
+      // 4. Downward Gravity Acceleration vector g (Rose red arrow)
+      const gArrowLen = Math.min(70, gravity * 3.5 * vectorScale);
+      drawExaggeratedVector(ctx, curX, curY, curX, curY + gArrowLen, {
+        color: '#f43f5e',
+        lineWidth: 3.5,
+        headLength: 13,
+        label: `g = ${gravity.toFixed(2)} m/s²`,
+        labelOffset: { x: 8, y: 12 },
+        glow: true,
+      });
     }
 
     // Apex marker indicator
@@ -323,6 +342,7 @@ export const ProjectileMotion: React.FC = () => {
     maxApexHeight,
     rad,
     timeToApex,
+    vectorScale,
   ]);
 
   return (
@@ -388,9 +408,9 @@ export const ProjectileMotion: React.FC = () => {
               </div>
             </div>
             <div>
-              <div className="text-slate-400">Range (total R)</div>
-              <div className="font-mono text-sm text-amber-400 tabular-nums">
-                {totalRange.toFixed(1)} m
+              <div className="text-slate-400">Vector Exaggeration</div>
+              <div className="font-mono text-sm text-purple-400 tabular-nums">
+                {vectorScale.toFixed(1)}x Boost
               </div>
             </div>
           </div>
@@ -446,6 +466,26 @@ export const ProjectileMotion: React.FC = () => {
         {/* Parameter Sliders Deck */}
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-sm font-semibold text-white tracking-tight">Kinematic Parameters</h2>
+
+          {/* Vector Exaggeration Slider */}
+          <div className="space-y-1.5 p-3 rounded-lg bg-slate-950 border border-slate-800">
+            <div className="flex justify-between text-xs">
+              <span className="text-purple-300 font-medium">Vector Line Exaggeration Boost:</span>
+              <span className="font-mono text-purple-400 font-bold">{vectorScale.toFixed(1)}x</span>
+            </div>
+            <input
+              type="range"
+              min="1.0"
+              max="5.0"
+              step="0.5"
+              value={vectorScale}
+              onChange={(e) => setVectorScale(Number(e.target.value))}
+              className="w-full accent-purple-500 cursor-pointer"
+            />
+            <p className="text-[11px] text-slate-400">
+              Magnifies glowing velocity components (vx, vy, v) and gravity vector arrows.
+            </p>
+          </div>
 
           {/* Velocity Slider */}
           <div className="space-y-1.5">

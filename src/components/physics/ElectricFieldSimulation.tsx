@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, RotateCcw, Plus, Minus, Trash2 } from 'lucide-react';
 import { MathTex } from '../MathTex';
+import { drawExaggeratedVector } from '../../utils/canvasVector';
 
 interface PointCharge {
   id: string;
@@ -24,6 +25,7 @@ export const ElectricFieldSimulation: React.FC = () => {
     { id: 'c2', x: 540, y: 220, q: -2 },
   ]);
   const [showFieldVectors, setShowFieldVectors] = useState<boolean>(true);
+  const [vectorScale, setVectorScale] = useState<number>(2.0); // Vector exaggeration boost
   const [showPotential, setShowPotential] = useState<boolean>(false);
   const [selectedChargeType, setSelectedChargeType] = useState<number>(2); // +2 uC default to add
 
@@ -233,13 +235,13 @@ export const ElectricFieldSimulation: React.FC = () => {
           const totalE = Math.hypot(Ex, Ey);
           if (totalE < 0.001) continue;
 
-          const arrowLen = Math.min(18, Math.max(6, Math.log(totalE + 1) * 3.5));
+          const arrowLen = Math.min(26, Math.max(8, Math.log(totalE + 1) * 4.5 * (vectorScale * 0.7)));
           const dirX = Ex / totalE;
           const dirY = Ey / totalE;
 
-          const opacity = Math.min(0.85, Math.max(0.15, totalE / 40));
+          const opacity = Math.min(0.95, Math.max(0.3, totalE / 35));
           ctx.strokeStyle = `rgba(56, 189, 248, ${opacity})`;
-          ctx.lineWidth = 1.2;
+          ctx.lineWidth = 2.2;
 
           ctx.beginPath();
           ctx.moveTo(x - (dirX * arrowLen) / 2, y - (dirY * arrowLen) / 2);
@@ -254,19 +256,19 @@ export const ElectricFieldSimulation: React.FC = () => {
           ctx.beginPath();
           ctx.moveTo(headX, headY);
           ctx.lineTo(
-            headX - 4 * Math.cos(angle - Math.PI / 6),
-            headY - 4 * Math.sin(angle - Math.PI / 6)
+            headX - 6 * Math.cos(angle - Math.PI / 6),
+            headY - 6 * Math.sin(angle - Math.PI / 6)
           );
           ctx.lineTo(
-            headX - 4 * Math.cos(angle + Math.PI / 6),
-            headY - 4 * Math.sin(angle + Math.PI / 6)
+            headX - 6 * Math.cos(angle + Math.PI / 6),
+            headY - 6 * Math.sin(angle + Math.PI / 6)
           );
           ctx.fill();
         }
       }
     }
 
-    // Test particle trails & heads
+    // Test particle trails & heads + Exaggerated Vectors
     testParticles.forEach((p) => {
       if (p.trail.length > 1) {
         ctx.strokeStyle = p.q > 0 ? 'rgba(239, 68, 68, 0.6)' : 'rgba(16, 185, 129, 0.6)';
@@ -281,11 +283,24 @@ export const ElectricFieldSimulation: React.FC = () => {
 
       ctx.fillStyle = p.q > 0 ? '#ef4444' : '#10b981';
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.5;
       ctx.stroke();
+
+      // Velocity Vector on test particle
+      const vMag = Math.hypot(p.vx, p.vy);
+      if (vMag > 5) {
+        const vLen = Math.min(50, Math.max(15, vMag * 0.4 * vectorScale));
+        drawExaggeratedVector(ctx, p.x, p.y, p.x + (p.vx / vMag) * vLen, p.y + (p.vy / vMag) * vLen, {
+          color: '#06b6d4',
+          lineWidth: 3.5,
+          headLength: 12,
+          label: 'v',
+          glow: true,
+        });
+      }
     });
 
     // Draw Source Charges
@@ -324,7 +339,7 @@ export const ElectricFieldSimulation: React.FC = () => {
       ctx.textBaseline = 'middle';
       ctx.fillText(isPos ? `+${c.q}` : `${c.q}`, c.x, c.y);
     });
-  }, [charges, showFieldVectors, showPotential, testParticles]);
+  }, [charges, showFieldVectors, showPotential, testParticles, vectorScale]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -408,7 +423,27 @@ export const ElectricFieldSimulation: React.FC = () => {
       {/* Zone 2: Control & Concept Deck */}
       <div className="lg:col-span-4 flex flex-col gap-4">
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-white tracking-tight">Placement Tool</h2>
+          <h2 className="text-sm font-semibold text-white tracking-tight">Placement Tool & Vectors</h2>
+
+          {/* Vector Exaggeration Slider */}
+          <div className="space-y-1.5 p-3 rounded-lg bg-slate-950 border border-slate-800">
+            <div className="flex justify-between text-xs">
+              <span className="text-purple-300 font-medium">Vector Line Exaggeration Boost:</span>
+              <span className="font-mono text-purple-400 font-bold">{vectorScale.toFixed(1)}x</span>
+            </div>
+            <input
+              type="range"
+              min="1.0"
+              max="4.0"
+              step="0.5"
+              value={vectorScale}
+              onChange={(e) => setVectorScale(Number(e.target.value))}
+              className="w-full accent-purple-500 cursor-pointer"
+            />
+            <p className="text-[11px] text-slate-400">
+              Magnifies field line arrowheads and particle velocity vector lines.
+            </p>
+          </div>
 
           <div className="space-y-2 text-xs">
             <label className="text-slate-300">New Charge to Place on Click:</label>

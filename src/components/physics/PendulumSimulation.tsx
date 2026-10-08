@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, RotateCcw, Info } from 'lucide-react';
 import { MathTex } from '../MathTex';
+import { drawExaggeratedVector } from '../../utils/canvasVector';
 
 export const PendulumSimulation: React.FC = () => {
   const [length, setLength] = useState<number>(1.5); // meters
@@ -9,6 +10,7 @@ export const PendulumSimulation: React.FC = () => {
   const [damping, setDamping] = useState<number>(0.05); // air resistance / friction
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [showVectors, setShowVectors] = useState<boolean>(true);
+  const [vectorScale, setVectorScale] = useState<number>(2.5); // Vector exaggeration boost
   const [showPhaseSpace, setShowPhaseSpace] = useState<boolean>(true);
 
   // State of pendulum: theta (radians), omega (angular velocity rad/s)
@@ -169,30 +171,67 @@ export const PendulumSimulation: React.FC = () => {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Vectors
+    // Vectors (Exaggerated & Glowing)
     if (showVectors) {
-      // Velocity vector (tangential)
+      // 1. Tension Vector T along string towards pivot
       const vTang = length * omega;
-      const vScale = 14;
-      const vx = vTang * Math.cos(theta);
-      const vy = -vTang * Math.sin(theta);
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(bobX, bobY);
-      ctx.lineTo(bobX + vx * vScale, bobY + vy * vScale);
-      ctx.stroke();
+      const tensionMag = mass * gravity * Math.cos(theta) + (mass * vTang * vTang) / length;
+      const tLen = Math.min(130, Math.max(35, tensionMag * 5 * vectorScale));
+      const tDirX = (pivotX - bobX) / (length * pxScale);
+      const tDirY = (pivotY - bobY) / (length * pxScale);
+      drawExaggeratedVector(ctx, bobX, bobY, bobX + tDirX * tLen, bobY + tDirY * tLen, {
+        color: '#06b6d4',
+        lineWidth: 4.5,
+        headLength: 16,
+        label: `T = ${tensionMag.toFixed(1)} N`,
+        glow: true,
+      });
 
-      // Gravity force vector (downward)
-      const fgScale = 6;
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(bobX, bobY);
-      ctx.lineTo(bobX, bobY + mass * gravity * fgScale);
-      ctx.stroke();
+      // 2. Weight Vector W = mg (Straight Downward, Glowing Amber)
+      const mgLen = Math.min(130, Math.max(35, mass * gravity * 4.5 * vectorScale));
+      drawExaggeratedVector(ctx, bobX, bobY, bobX, bobY + mgLen, {
+        color: '#f59e0b',
+        lineWidth: 4.5,
+        headLength: 16,
+        label: `mg = ${(mass * gravity).toFixed(1)} N`,
+        labelOffset: { x: 8, y: 15 },
+        glow: true,
+      });
+
+      // 3. Restoring Force Vector F_net = -mg sin(theta) (Tangential force)
+      const fRestoring = -mass * gravity * Math.sin(theta);
+      const fRestLen = Math.abs(fRestoring) * 5 * vectorScale;
+      if (Math.abs(fRestLen) > 4) {
+        const sign = fRestoring > 0 ? 1 : -1;
+        const perpX = Math.cos(theta) * sign;
+        const perpY = -Math.sin(theta) * sign;
+        drawExaggeratedVector(ctx, bobX, bobY, bobX + perpX * fRestLen, bobY + perpY * fRestLen, {
+          color: '#f43f5e',
+          lineWidth: 4,
+          headLength: 15,
+          label: `F_net = ${Math.abs(fRestoring).toFixed(1)} N`,
+          glow: true,
+        });
+      }
+
+      // 4. Tangential Velocity Vector v (Glowing Emerald)
+      const vMag = Math.abs(vTang);
+      const vLen = Math.min(120, Math.max(25, vMag * 16 * vectorScale));
+      if (vMag > 0.05) {
+        const vx = vTang * Math.cos(theta);
+        const vy = -vTang * Math.sin(theta);
+        const vUnitX = vx / vMag;
+        const vUnitY = vy / vMag;
+        drawExaggeratedVector(ctx, bobX, bobY, bobX + vUnitX * vLen, bobY + vUnitY * vLen, {
+          color: '#10b981',
+          lineWidth: 4,
+          headLength: 15,
+          label: `v = ${vMag.toFixed(2)} m/s`,
+          glow: true,
+        });
+      }
     }
-  }, [theta, omega, length, mass, gravity, showVectors]);
+  }, [theta, omega, length, mass, gravity, showVectors, vectorScale]);
 
   // Phase Space Canvas render
   useEffect(() => {
@@ -415,6 +454,26 @@ export const PendulumSimulation: React.FC = () => {
       <div className="lg:col-span-4 flex flex-col gap-4">
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-sm font-semibold text-white tracking-tight">Oscillation Parameters</h2>
+
+          {/* Vector Exaggeration Slider */}
+          <div className="space-y-1.5 p-3 rounded-lg bg-slate-950 border border-slate-800">
+            <div className="flex justify-between text-xs">
+              <span className="text-purple-300 font-medium">Vector Line Exaggeration Boost:</span>
+              <span className="font-mono text-purple-400 font-bold">{vectorScale.toFixed(1)}x</span>
+            </div>
+            <input
+              type="range"
+              min="1.0"
+              max="5.0"
+              step="0.5"
+              value={vectorScale}
+              onChange={(e) => setVectorScale(Number(e.target.value))}
+              className="w-full accent-purple-500 cursor-pointer"
+            />
+            <p className="text-[11px] text-slate-400">
+              Magnifies glowing tension <MathTex math="\vec{T}" />, weight <MathTex math="m\vec{g}" />, and restoring force <MathTex math="\vec{F}_{net}" />.
+            </p>
+          </div>
 
           {/* Length */}
           <div className="space-y-1.5">
