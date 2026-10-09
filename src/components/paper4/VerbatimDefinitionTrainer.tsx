@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, ArrowRight, RotateCcw, Award, Search, Sparkles } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, ArrowRight, RotateCcw, Award, Search, Sparkles, HelpCircle } from 'lucide-react';
 import { CIE_A2_DEFINITIONS, CIEDefinition } from '../../data/cieDefinitions';
+import { smartEvaluateDefinition, DefinitionEvaluation } from '../../utils/markingEvaluator';
 
 export const VerbatimDefinitionTrainer: React.FC = () => {
   const [selectedTopic, setSelectedTopic] = useState<string>('All');
@@ -27,42 +28,21 @@ export const VerbatimDefinitionTrainer: React.FC = () => {
 
   const currentDef = filteredDefinitions[currentIndex] || filteredDefinitions[0];
 
-  // Evaluate user answer against requiredKeywords
-  const evaluationResult = useMemo(() => {
-    if (!currentDef || !userAnswer.trim()) {
-      return { score: 0, matchedGroups: [], missedGroups: [] };
+  // Smart & flexible evaluation aware of word configurations, synonyms, and traps
+  const evaluationResult: DefinitionEvaluation = useMemo(() => {
+    if (!currentDef) {
+      return {
+        score: 0,
+        maxMarks: 1,
+        isVerbatim: false,
+        percentage: 0,
+        matchedGroups: [],
+        missedGroups: [],
+        detectedTraps: [],
+        feedback: '',
+      };
     }
-
-    const lowerAns = userAnswer.toLowerCase();
-    const matchedGroups: string[] = [];
-    const missedGroups: string[] = [];
-
-    currentDef.requiredKeywords.forEach((synonyms) => {
-      const found = synonyms.some((syn) => lowerAns.includes(syn.toLowerCase()));
-      if (found) {
-        matchedGroups.push(synonyms[0]);
-      } else {
-        missedGroups.push(synonyms[0]);
-      }
-    });
-
-    const fraction = matchedGroups.length / currentDef.requiredKeywords.length;
-    let awardedMarks = 0;
-    if (currentDef.marks === 1) {
-      awardedMarks = fraction >= 0.75 ? 1 : 0;
-    } else if (currentDef.marks === 2) {
-      if (fraction >= 0.85) awardedMarks = 2;
-      else if (fraction >= 0.45) awardedMarks = 1;
-      else awardedMarks = 0;
-    } else {
-      awardedMarks = Math.round(fraction * currentDef.marks);
-    }
-
-    return {
-      score: awardedMarks,
-      matchedGroups,
-      missedGroups,
-    };
+    return smartEvaluateDefinition(userAnswer, currentDef);
   }, [currentDef, userAnswer]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -98,20 +78,20 @@ export const VerbatimDefinitionTrainer: React.FC = () => {
             <span aria-hidden="true">·</span>
             <span>Verbatim Mark-Scheme Drill</span>
             <span aria-hidden="true">·</span>
-            <span className="text-cyan-400 font-mono">Strict Examiner Mode</span>
+            <span className="text-cyan-400 font-mono">Semantic &amp; Word-Order Aware Grader</span>
           </div>
           <h2 className="text-lg font-bold text-white tracking-tight mt-1">
-            Exact Definitions & Key Terms Grader
+            Exact Definitions &amp; Key Concepts Grader ({CIE_A2_DEFINITIONS.length} Total)
           </h2>
           <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-            In Paper 4, examiners look for precise key phrases. Missing words like &quot;per unit mass&quot; or &quot;from infinity&quot; results in instant 0 marks. Type your answer and compare against the official mark scheme.
+            In Paper 4, examiners look for precise key phrases. Our intelligent marker checks active and passive phrasing, word permutations, and alternative expressions while ensuring critical conditions (e.g. &quot;per unit mass&quot;, &quot;from infinity&quot;) are never omitted.
           </p>
         </div>
 
         <div className="flex items-center gap-4 bg-slate-950 p-3 rounded-lg border border-slate-800 shrink-0">
           <div>
             <div className="text-[11px] text-slate-400">Mastery Progress</div>
-            <div className="text-sm font-semibold text-cyan-400">
+            <div className="text-sm font-semibold text-cyan-400 font-mono">
               {totalMastered} / {CIE_A2_DEFINITIONS.length} Definitions
             </div>
           </div>
@@ -146,7 +126,7 @@ export const VerbatimDefinitionTrainer: React.FC = () => {
           <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search term or topic..."
+            placeholder="Search all definitions..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 pr-3 py-1.5 text-xs bg-slate-900 border border-slate-800 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-600"
@@ -162,7 +142,9 @@ export const VerbatimDefinitionTrainer: React.FC = () => {
             <div className="flex items-center gap-2 text-xs">
               <span className="font-semibold text-white">{currentDef.topic}</span>
               <span className="text-slate-500" aria-hidden="true">·</span>
-              <span className="text-slate-400">{currentDef.pastPaperRef}</span>
+              <span className="text-slate-400 font-mono">{currentDef.pastPaperRef}</span>
+              <span className="text-slate-500" aria-hidden="true">·</span>
+              <span className="text-cyan-400">Definition {currentIndex + 1} of {filteredDefinitions.length}</span>
             </div>
             <div className="flex items-center gap-2 text-xs font-mono text-cyan-400">
               [{currentDef.marks} {currentDef.marks === 1 ? 'mark' : 'marks'}]
@@ -172,7 +154,7 @@ export const VerbatimDefinitionTrainer: React.FC = () => {
           <div className="p-6 space-y-6">
             <div>
               <div className="text-xs text-slate-400 mb-1">State or define:</div>
-              <h3 className="text-lg font-bold text-white tracking-tight">
+              <h3 className="text-xl font-bold text-white tracking-tight">
                 {currentDef.term}
               </h3>
             </div>
@@ -181,29 +163,29 @@ export const VerbatimDefinitionTrainer: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs text-slate-300">
-                  Your Answer (write in full sentences with technical terms):
+                  Your Answer (enter in full technical sentences):
                 </label>
                 <textarea
                   rows={3}
                   value={userAnswer}
                   onChange={(e) => setUserAnswer(e.target.value)}
-                  placeholder="e.g. Work done per unit mass in bringing..."
+                  placeholder="Type your definition here..."
                   disabled={hasEvaluated}
-                  className="w-full p-3 text-sm bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-600 font-sans leading-relaxed resize-none disabled:opacity-80"
+                  className="w-full p-3 text-sm bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-600 font-sans leading-relaxed resize-none disabled:opacity-90"
                 />
               </div>
 
               {!hasEvaluated ? (
                 <div className="flex items-center justify-between">
-                  <div className="text-[11px] text-slate-500">
-                    Pro tip: Include exact units or definitions per unit mass/time/volume where applicable.
+                  <div className="text-[11px] text-slate-400">
+                    Marker recognizes flexible word orders, synonyms, and active/passive voice.
                   </div>
                   <button
                     type="submit"
                     disabled={!userAnswer.trim()}
                     className="flex items-center gap-2 px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
                   >
-                    <span>Submit to Examiner</span>
+                    <span>Submit to Smart Examiner</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -251,32 +233,57 @@ export const VerbatimDefinitionTrainer: React.FC = () => {
                       <XCircle className="w-5 h-5 text-rose-400" />
                     )}
                     <div>
-                      <div className="text-sm font-bold">
+                      <div className="text-sm font-bold font-mono">
                         Examiner Score: {evaluationResult.score} / {currentDef.marks}{' '}
                         {currentDef.marks === 1 ? 'mark' : 'marks'}
                       </div>
                       <div className="text-xs opacity-90">
-                        {evaluationResult.score === currentDef.marks
-                          ? 'Full marks awarded! Exact criteria satisfied.'
-                          : evaluationResult.score > 0
-                          ? 'Partial credit. Check the underlined words in the mark scheme.'
-                          : 'Zero marks. Core technical keywords were omitted.'}
+                        {evaluationResult.feedback}
                       </div>
                     </div>
                   </div>
+                  {evaluationResult.isVerbatim && (
+                    <span className="text-[11px] font-mono font-semibold px-2.5 py-1 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-700/50">
+                      ★ 100% CIE Precision
+                    </span>
+                  )}
                 </div>
+
+                {/* Detected Traps Alert */}
+                {evaluationResult.detectedTraps.length > 0 && (
+                  <div className="p-3.5 rounded-lg bg-rose-950/40 border border-rose-800/80 text-rose-200 text-xs space-y-1.5">
+                    <div className="font-semibold text-rose-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-rose-400" />
+                      <span>Examiner Penalty Trap Detected:</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-1 text-slate-200">
+                      {evaluationResult.detectedTraps.map((trap, idx) => (
+                        <li key={idx} className="font-mono text-[11px]">
+                          {trap}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Keyword Analysis */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
                     <div className="text-emerald-400 font-medium flex items-center gap-1.5">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Required Terms Detected:</span>
+                      <span>Required Concepts Detected:</span>
                     </div>
                     {evaluationResult.matchedGroups.length > 0 ? (
-                      <ul className="list-disc list-inside text-slate-300 space-y-0.5">
+                      <ul className="list-disc list-inside text-slate-300 space-y-1.5">
                         {evaluationResult.matchedGroups.map((g, i) => (
-                          <li key={i}>{g}</li>
+                          <li key={i} className="text-[11px]">
+                            <span className="font-semibold text-emerald-300">{g.criterion}</span>
+                            {g.matchedWord && (
+                              <span className="text-slate-400 font-mono ml-1">
+                                (matched: &quot;{g.matchedWord}&quot;)
+                              </span>
+                            )}
+                          </li>
                         ))}
                       </ul>
                     ) : (
@@ -284,19 +291,24 @@ export const VerbatimDefinitionTrainer: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
                     <div className="text-rose-400 font-medium flex items-center gap-1.5">
                       <XCircle className="w-3.5 h-3.5" />
-                      <span>Missing Mandatory Terms:</span>
+                      <span>Missing Essential Criteria:</span>
                     </div>
                     {evaluationResult.missedGroups.length > 0 ? (
-                      <ul className="list-disc list-inside text-slate-300 space-y-0.5">
+                      <ul className="list-disc list-inside text-slate-300 space-y-1.5">
                         {evaluationResult.missedGroups.map((g, i) => (
-                          <li key={i}>{g}</li>
+                          <li key={i} className="text-[11px]">
+                            <span className="font-semibold text-rose-300">{g.criterion}</span>
+                            <div className="text-[10px] text-slate-400 ml-4 font-mono">
+                              Required: {g.requiredPhrase}
+                            </div>
+                          </li>
                         ))}
                       </ul>
                     ) : (
-                      <div className="text-emerald-400 italic">All key terms present!</div>
+                      <div className="text-emerald-400 italic">All key criteria satisfied!</div>
                     )}
                   </div>
                 </div>
@@ -305,7 +317,7 @@ export const VerbatimDefinitionTrainer: React.FC = () => {
                 <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2 text-xs">
                   <div className="flex items-center gap-2 text-cyan-400 font-semibold">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Official CIE Mark Scheme:</span>
+                    <span>Official CIE Mark Scheme [B Marks]:</span>
                   </div>
                   <div className="p-3 rounded bg-slate-900 border border-slate-800 text-slate-200 font-mono text-xs leading-relaxed whitespace-pre-line">
                     {currentDef.verbatimMarkScheme}

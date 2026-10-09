@@ -1,21 +1,77 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, CheckCircle2, AlertCircle, HelpCircle, Award } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ChevronDown, ChevronUp, CheckCircle2, AlertCircle, HelpCircle, Award, Sparkles, Check, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PAPER_4_QUESTIONS, Paper4Question, QuestionPart } from '../../data/paper4StructuredQuestions';
 import { MathTex } from '../MathTex';
+import { smartEvaluateStructuredPart, StructuredPartEvaluation } from '../../utils/markingEvaluator';
 
 export const StructuredPaper4Simulator: React.FC = () => {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string>(PAPER_4_QUESTIONS[0].id);
+  const [selectedTopic, setSelectedTopic] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [revealedParts, setRevealedParts] = useState<Record<string, boolean>>({});
   const [userInputs, setUserInputs] = useState<Record<string, string>>({});
   const [awardedMarks, setAwardedMarks] = useState<Record<string, number>>({});
+  const [evaluations, setEvaluations] = useState<Record<string, StructuredPartEvaluation>>({});
+
+  const topics = useMemo(() => {
+    const list = Array.from(new Set(PAPER_4_QUESTIONS.map((q) => q.topic)));
+    return ['All', ...list];
+  }, []);
+
+  const filteredQuestions = useMemo(() => {
+    return PAPER_4_QUESTIONS.filter((q, idx) => {
+      const matchesTopic = selectedTopic === 'All' || q.topic === selectedTopic;
+      const qNumStr = `q${idx + 1}`;
+      const matchesSearch =
+        searchQuery === '' ||
+        q.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        q.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        q.context.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        qNumStr.includes(searchQuery.toLowerCase());
+      return matchesTopic && matchesSearch;
+    });
+  }, [selectedTopic, searchQuery]);
 
   const activeQuestion =
-    PAPER_4_QUESTIONS.find((q) => q.id === selectedQuestionId) || PAPER_4_QUESTIONS[0];
+    PAPER_4_QUESTIONS.find((q) => q.id === selectedQuestionId) ||
+    filteredQuestions[0] ||
+    PAPER_4_QUESTIONS[0];
 
-  const toggleReveal = (partId: string) => {
+  const activeIndexInAll = PAPER_4_QUESTIONS.findIndex((q) => q.id === activeQuestion.id);
+
+  const handlePrevQuestion = () => {
+    if (activeIndexInAll > 0) {
+      setSelectedQuestionId(PAPER_4_QUESTIONS[activeIndexInAll - 1].id);
+    }
+  };
+
+  const handleNextQuestion = () => {
+    if (activeIndexInAll < PAPER_4_QUESTIONS.length - 1) {
+      setSelectedQuestionId(PAPER_4_QUESTIONS[activeIndexInAll + 1].id);
+    }
+  };
+
+  const toggleReveal = (partKey: string) => {
     setRevealedParts((prev) => ({
       ...prev,
-      [partId]: !prev[partId],
+      [partKey]: !prev[partKey],
+    }));
+  };
+
+  const handleSmartCheck = (partKey: string, part: QuestionPart) => {
+    const input = userInputs[partKey] || '';
+    const result = smartEvaluateStructuredPart(input, part);
+    setEvaluations((prev) => ({
+      ...prev,
+      [partKey]: result,
+    }));
+    setAwardedMarks((prev) => ({
+      ...prev,
+      [partKey]: result.score,
+    }));
+    setRevealedParts((prev) => ({
+      ...prev,
+      [partKey]: true,
     }));
   };
 
@@ -64,22 +120,79 @@ export const StructuredPaper4Simulator: React.FC = () => {
         </div>
       </div>
 
+      {/* Topic Filter & Search Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+          {topics.map((t) => (
+            <button
+              key={t}
+              onClick={() => setSelectedTopic(t)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                selectedTopic === t
+                  ? 'bg-cyan-900/80 text-cyan-200 border border-cyan-700/60 shadow-sm'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search 65 questions (e.g. Q48, Millikan, Fission)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 pr-3 py-1.5 text-xs bg-slate-900 border border-slate-800 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-600 w-56 sm:w-64 font-sans"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handlePrevQuestion}
+              disabled={activeIndexInAll <= 0}
+              className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-30 cursor-pointer"
+              title="Previous Question"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-mono text-cyan-400 px-1">
+              Q{activeIndexInAll + 1} / {PAPER_4_QUESTIONS.length}
+            </span>
+            <button
+              onClick={handleNextQuestion}
+              disabled={activeIndexInAll >= PAPER_4_QUESTIONS.length - 1}
+              className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-30 cursor-pointer"
+              title="Next Question"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Question Switcher Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {PAPER_4_QUESTIONS.map((q, idx) => (
-          <button
-            key={q.id}
-            onClick={() => setSelectedQuestionId(q.id)}
-            className={`px-4 py-2 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
-              selectedQuestionId === q.id
-                ? 'bg-cyan-900/80 text-cyan-200 border border-cyan-700/60 shadow-sm'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-            }`}
-          >
-            <span>Q{idx + 1}. {q.topic}</span>
-            <span className="ml-2 text-slate-500">[{q.totalMarks}m]</span>
-          </button>
-        ))}
+        {filteredQuestions.map((q) => {
+          const originalIndex = PAPER_4_QUESTIONS.findIndex((item) => item.id === q.id);
+          const isSelected = selectedQuestionId === q.id;
+          return (
+            <button
+              key={q.id}
+              onClick={() => setSelectedQuestionId(q.id)}
+              className={`px-3.5 py-2 text-xs font-medium rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                isSelected
+                  ? 'bg-cyan-900/90 text-cyan-100 border border-cyan-600 shadow-sm font-semibold'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <span>Q{originalIndex + 1}. {q.topic}</span>
+              <span className="ml-1.5 text-slate-500">[{q.totalMarks}m]</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Active Question Display */}
@@ -139,35 +252,44 @@ export const StructuredPaper4Simulator: React.FC = () => {
                   />
                 </div>
 
-                {/* Mark Scheme Toggle Button */}
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => toggleReveal(partKey)}
-                    className="flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 font-medium transition-colors cursor-pointer"
-                  >
-                    {isRevealed ? (
-                      <>
-                        <ChevronUp className="w-4 h-4" />
-                        <span>Hide Official Mark Scheme &amp; Solution</span>
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="w-4 h-4" />
-                        <span>Check Official Mark Scheme &amp; Self-Assess</span>
-                      </>
-                    )}
-                  </button>
+                {/* Actions & Mark Assessor */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSmartCheck(partKey, part)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-700/80 hover:bg-cyan-600 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Smart Check &amp; Grade Working</span>
+                    </button>
+                    <button
+                      onClick={() => toggleReveal(partKey)}
+                      className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white px-2 py-1.5 transition-colors cursor-pointer"
+                    >
+                      {isRevealed ? (
+                        <>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                          <span>Hide Scheme</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                          <span>Show Official Scheme</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
 
                   {/* Marks Assessor */}
                   {isRevealed && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">Self-Award Marks:</span>
+                      <span className="text-xs text-slate-400">Awarded:</span>
                       <div className="flex items-center gap-1">
                         {Array.from({ length: part.marks + 1 }).map((_, m) => (
                           <button
                             key={m}
                             onClick={() => handleSetMark(partKey, m)}
-                            className={`w-7 h-7 text-xs font-mono rounded border transition-colors ${
+                            className={`w-7 h-7 text-xs font-mono rounded border transition-colors cursor-pointer ${
                               currentMark === m
                                 ? 'bg-cyan-600 text-white border-cyan-500 font-bold'
                                 : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
@@ -180,6 +302,62 @@ export const StructuredPaper4Simulator: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Smart Evaluation Card if performed */}
+                {evaluations[partKey] && (
+                  <div className="p-3.5 rounded-lg bg-slate-900/90 border border-cyan-800/40 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-cyan-300 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Smart Examiner Evaluation:</span>
+                      </span>
+                      <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
+                        {evaluations[partKey].score} / {part.marks} Marks
+                      </span>
+                    </div>
+                    <p className="text-slate-300 text-xs">{evaluations[partKey].feedback}</p>
+
+                    {evaluations[partKey].numericDetails && (
+                      <div className="text-[11px] p-2 rounded bg-slate-950 border border-slate-800 space-y-1">
+                        <div className="text-slate-400">
+                          Calculation Check:{' '}
+                          <span
+                            className={
+                              evaluations[partKey].numericMatched
+                                ? 'text-emerald-400 font-medium'
+                                : 'text-rose-400 font-medium'
+                            }
+                          >
+                            {evaluations[partKey].numericDetails?.note}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] pt-1">
+                      {evaluations[partKey].keyPointsMatched.length > 0 && (
+                        <div className="text-emerald-400 space-y-0.5">
+                          <span className="font-semibold">Key Points Detected:</span>
+                          <ul className="list-disc list-inside text-slate-300">
+                            {evaluations[partKey].keyPointsMatched.map((kp, idx) => (
+                              <li key={idx}>{kp}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {evaluations[partKey].keyPointsMissed.length > 0 && (
+                        <div className="text-amber-400 space-y-0.5">
+                          <span className="font-semibold">Required Method Points Missed:</span>
+                          <ul className="list-disc list-inside text-slate-300">
+                            {evaluations[partKey].keyPointsMissed.map((kp, idx) => (
+                              <li key={idx}>{kp}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Revealed Mark Scheme & Solution Details */}
                 {isRevealed && (
